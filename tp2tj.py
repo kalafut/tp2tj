@@ -14,6 +14,7 @@ INDENT = 2
 class Task:
     desc = attr.ib()
     level = attr.ib()
+    parent = attr.ib()
     children = attr.ib(default=attr.Factory(list))
     tags = attr.ib(default=attr.Factory(dict))
     root = attr.ib(default=False)
@@ -24,6 +25,7 @@ class TagDef:
     name = attr.ib()
     has_val = attr.ib()
     default = attr.ib()
+
 
 def extract(line):
     tags = {}
@@ -52,12 +54,16 @@ def output_task(task):
         return ' ' * INDENT * lvl
 
     out = f'\ntask "{task.desc}" {{\n'
-    out += '  allocate inf\n'
+
+    if task.parent and 'allocate' in task.parent.tags:
+        if 'allocate' in task.tags:
+            out += f'  purge allocate\n'
 
     for tag, val in task.tags.items():
         if not val:
             val = ''
         out += f'  {tag} {val}\n'
+
 
     out = out.rstrip()
 
@@ -73,7 +79,7 @@ def output_task(task):
         print(indent(task.level) + '}')
 
 
-root = Task("", -1, root=True)
+root = Task("", -1, parent=None, root=True)
 
 def proc(fn):
     parent = root
@@ -89,7 +95,6 @@ def proc(fn):
             if match:
                 level = len(match.group(1))
                 desc, tags = extract(match.group(2))
-                task = Task(desc=desc.strip(), level=level, tags=tags)
 
                 if level > last_level:
                     pstk.append(parent)
@@ -98,8 +103,8 @@ def proc(fn):
                     for _ in range(parent.level - level + 1):
                         parent = pstk.pop()
                 last_level = level
+                task = Task(desc=desc.strip(), level=level, parent=parent, tags=tags)
                 parent.children.append(task)
-
 
     output_task(root)
 
@@ -121,6 +126,5 @@ if __name__ == '__main__':
             else:
                 default = None
             TAGS.append(TagDef(tag, name, has_val, default))
-    print(TAGS)
+
     proc(sys.argv[1])
-    #print(config.get('tags', 'foodir'))
